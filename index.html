@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:ital,wght@0,100..700;1,100..700&family=Karla:ital,wght@0,200..800;1,200..800&family=Playwrite+GB+J+Guides:ital@0;1&family=Sour+Gummy:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <style>
+        body{
+            font-family: 'Josefin Sans';
+        }
+        .struck-through {
+            text-decoration: line-through;
+            color: gray; 
+        }
+
+        form {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .input1 {
+            height: 30px;
+            width: 500px;
+            border: 1px solid black;
+            padding: 0 15px;
+        }
+
+        .btn {
+            height: 33px;
+            width: 100px;
+            background-color: black;
+            color: white;
+        }
+
+        .section {
+            margin-top: 20px;
+        }
+
+        .completed {
+            margin-top: 20px;
+            background-color: #f0f8ff;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+
+        .in-progress {
+            margin-top: 20px;
+            background-color: #fffaf0;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+
+        .deleted {
+            margin-top: 20px;
+            background-color: #ffe4e1;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+
+        .delete-btn, .restore-btn {
+            color: red;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .restore-btn {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+
+    <form action="">
+        <input type="hidden" id="no">
+        <input type="text" class="input1" placeholder="Enter your task" id="task">
+        <input type="button" class="btn" value="Submit" id="add" onclick="addTask()">
+        <br><br>
+        <div id="res">
+            <div class='in-progress'>
+                <h3>Tasks In Progress</h3>
+                <table id="inProgressTable" style="width: 100%; border-collapse: collapse;"></table>
+            </div>
+            <div class='completed'>
+                <h3>Tasks Completed</h3>
+                <table id="completedTable" style="width: 100%; border-collapse: collapse;"></table>
+            </div>
+            <div class='deleted'>
+                <h3>Deleted Tasks</h3>
+                <table id="deletedTable" style="width: 100%; border-collapse: collapse;"></table>
+            </div>
+        </div>
+    </form>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" type="text/javascript"></script>
+    <script>
+        var task = [];
+        var deletedTasks = [];
+        var taskIdCounter = 0;
+
+        // Add Task Function
+        function addTask() {
+            var taskname = document.getElementById('task').value;
+            if (taskname.trim() === "") { // using this trim function of js for removing space while adding the task
+                alert("Task cannot be empty");
+                return;
+            }
+
+            taskIdCounter++; // will increase no for diffranciate the id
+
+            var taskAdd = {
+                taskname: taskname,
+                no: taskIdCounter,
+                status: false // Initially, task is "in progress"
+            };
+
+            task.push(taskAdd); // add task to the array
+            sortTasks(); // for sorting through abcd
+            updateLocalStorage(); // for not refreshing browser for any kind of update
+            renderTasks(); // for rendering the task
+            document.getElementById('task').value = ""; // Reset input field
+        }
+
+        // Sort tasks alphabetically
+        function sortTasks() {
+            task.sort((a, b) => a.taskname.localeCompare(b.taskname)); // creating common function for using multiple time
+            // localecompare use ->  used to compare two strings in a locale-sensitive manner
+        }
+
+        // Sort deleted tasks alphabetically
+        function sortDeletedTasks() {
+            deletedTasks.sort((a, b) => a.taskname.localeCompare(b.taskname)); // creating common function for deleted task's array
+             // localecompare use ->  used to compare two strings in a locale-sensitive manner
+        }
+
+        // Render Tasks
+        function renderTasks() {
+            clearTables();
+            task.forEach(taskObj => {
+                addTaskToDOM(taskObj);
+            });
+            sortDeletedTasks(); // Ensure deleted tasks are sorted before rendering
+            deletedTasks.forEach(taskObj => {
+                var row = createDeletedTaskRow(taskObj);
+                document.getElementById('deletedTable').appendChild(row);
+            });
+        }
+
+        // Clear Tables
+        function clearTables() {
+            document.getElementById('inProgressTable').innerHTML = "";
+            document.getElementById('completedTable').innerHTML = "";
+            document.getElementById('deletedTable').innerHTML = "";
+        }
+
+        // Add Task to DOM (Update)
+        function addTaskToDOM(taskObj) {
+            var tableId = taskObj.status ? "completedTable" : "inProgressTable";
+            var row = createTaskRow(taskObj);
+            document.getElementById(tableId).appendChild(row);
+        }
+
+        // Create Task Row
+        function createTaskRow(taskObj) {
+            var row = document.createElement('tr');
+            var taskClass = taskObj.status ? 'struck-through' : ''; // for strike lining on the completed task or for checking status update
+
+            row.innerHTML = `<td class="${taskClass}">${taskObj.taskname}</td><td><input type="checkbox" class="checkbox" data-id="${taskObj.no}" ${taskObj.status ? 'checked' : ''} /></td>
+                <td><a href="javascript:void(0)" class="delete-btn" onclick="deleteData(${taskObj.no})">Delete</a></td>`;
+
+            // Attach event listener to checkbox
+            $(row).find('.checkbox').on("change", function () {
+                var taskId = $(this).data('id');
+                var isChecked = $(this).is(":checked");
+                updateTaskStatus(taskId, isChecked);
+            });
+
+            return row;
+        }
+
+        // Update Task Status
+        function updateTaskStatus(taskId, isChecked) {
+            var taskIndex = task.findIndex(t => t.no === taskId);
+            if (taskIndex === -1) return;
+            task[taskIndex].status = isChecked;
+            sortTasks(); // for sorting through abcd
+            updateLocalStorage();// for not refreshing browser for any kind of update
+            renderTasks(); // for rendering the task
+        }
+
+        // Delete Task
+        function deleteData(taskId) {
+            var taskIndex = task.findIndex(t => t.no === taskId);
+            if (taskIndex === -1) return;
+            var deletedTask = task.splice(taskIndex, 1)[0];
+            deletedTasks.push(deletedTask);
+            sortDeletedTasks(); // Sort deleted tasks after adding
+            updateLocalStorage();// for not refreshing browser for any kind of update
+            updateDeletedStorage(); // for sorting deleted tasks
+            renderTasks(); // for rendering the task
+        }
+
+        // Create Deleted Task Row
+        function createDeletedTaskRow(taskObj) {
+            var row = document.createElement('tr');
+            row.innerHTML = `<td>${taskObj.taskname}</td><td><a href="javascript:void(0)" class="restore-btn" onclick="restoreTask(${taskObj.no})">Restore</a></td>`;
+            return row;
+        }
+
+        // Restore Task
+        function restoreTask(taskId) {
+            var taskIndex = deletedTasks.findIndex(t => t.no === taskId);
+            if (taskIndex === -1) return;
+            var restoredTask = deletedTasks.splice(taskIndex, 1)[0];
+            task.push(restoredTask);
+            sortTasks(); // Sort active tasks after restoring
+            sortDeletedTasks(); // Sort deleted tasks after removal
+            updateLocalStorage();// for not refreshing browser for any kind of update
+            updateDeletedStorage();// for sorting deleted tasks
+            renderTasks();// for rendering the task
+        }
+
+        // Update LocalStorage
+        function updateLocalStorage() {
+            localStorage.setItem('data', JSON.stringify(task));
+        }
+
+        // Update Deleted Tasks in LocalStorage
+        function updateDeletedStorage() {
+            localStorage.setItem('deletedData', JSON.stringify(deletedTasks));
+        }
+
+        // Load Tasks from LocalStorage
+        function loadTasks() {
+            var storedData = localStorage.getItem('data');
+            var deletedData = localStorage.getItem('deletedData');
+            task = storedData ? JSON.parse(storedData) : [];
+            deletedTasks = deletedData ? JSON.parse(deletedData) : [];
+            sortTasks();// Sort active tasks after restoring
+            renderTasks();// for rendering the task
+        }
+
+        loadTasks();// Initial Load
+
+    </script>
+
+</body>
+</html>
